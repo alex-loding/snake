@@ -1,0 +1,2023 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SNAKE-贪吃蛇</title>
+    <link id="favicon" rel="icon" type="image/png">
+    <script>
+        (function(){
+            const c = document.createElement('canvas');
+            c.width = c.height = 64;
+            const x = c.getContext('2d');
+            // 背景
+            x.fillStyle = '#0a0800';
+            x.fillRect(0, 0, 64, 64);
+            // 外边框
+            x.strokeStyle = '#ffd700';
+            x.lineWidth = 3;
+            x.strokeRect(2, 2, 60, 60);
+            // 蛇身（S形路径）
+            const seg = 10, gap = 2;
+            const segs = [
+                {r:1,c:2},{r:1,c:3},{r:1,c:4},
+                {r:2,c:4},{r:3,c:4},
+                {r:3,c:3},{r:3,c:2},{r:3,c:1},
+                {r:4,c:1},{r:5,c:1},
+                {r:5,c:2},{r:5,c:3},{r:5,c:4}
+            ];
+            segs.forEach((s, i) => {
+                const px = s.c * (seg + gap) - 4;
+                const py = s.r * (seg + gap) - 4;
+                x.fillStyle = i === 0 ? '#ffd700' : 'rgba(255,215,0,0.55)';
+                x.shadowBlur = i === 0 ? 8 : 0;
+                x.shadowColor = '#ffd700';
+                x.fillRect(px, py, seg, seg);
+            });
+            // 蛇眼
+            x.fillStyle = '#0a0800';
+            x.shadowBlur = 0;
+            x.fillRect(segs[0].c*(seg+gap)-4+3, segs[0].r*(seg+gap)-4+3, 3, 3);
+            // 食物
+            x.fillStyle = '#daa520';
+            x.shadowBlur = 6;
+            x.shadowColor = '#ffd700';
+            x.fillRect(16, 50, 8, 8);
+            document.getElementById('favicon').href = c.toDataURL('image/png');
+        })();
+    </script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        /* ══════════════════════════════════════
+           主题变量定义
+           每套主题覆盖这些 CSS 变量：
+           --bg         页面背景
+           --panel-bg   面板背景
+           --panel-border 面板边框
+           --panel-glow 面板发光色
+           --accent1    主强调色（蛇头、分数、边框）
+           --accent2    次强调色（食物、按钮激活）
+           --accent3    第三色（标签、排行标题）
+           --text       正文色
+           --text-dim   次要文字
+           --canvas-bg  画布背景
+           --grid-line  网格线色
+           --snake-body 蛇身色
+           --font       字体
+           --scanline   扫描线开关 (1=on 0=off)
+        ══════════════════════════════════════ */
+
+        /* 1. CYBERPUNK */
+        [data-theme="cyberpunk"] {
+            --bg: #080116;
+            --panel-bg: rgba(13,2,33,0.92);
+            --panel-border: #00f2ff;
+            --panel-glow: rgba(0,242,255,0.28);
+            --accent1: #00f2ff;
+            --accent2: #ff00ff;
+            --accent3: #00ff9f;
+            --accent4: #ffe600;
+            --text: #e0f7ff;
+            --text-dim: rgba(255,255,255,0.35);
+            --canvas-bg: #000;
+            --grid-line: rgba(0,242,255,0.05);
+            --snake-body: rgba(0,242,255,0.38);
+            --font: 'Courier New', monospace;
+            --scanline: 1;
+            --btn-bg: #1a0533;
+            --select-bg: #1a0533;
+            --go-bg: rgba(13,2,33,0.95);
+        }
+
+        /* 2. ABYSS 深渊暗黑 */
+        [data-theme="abyss"] {
+            --bg: #050508;
+            --panel-bg: rgba(8,8,14,0.97);
+            --panel-border: #3a1a5c;
+            --panel-glow: rgba(80,0,120,0.2);
+            --accent1: #9b30ff;
+            --accent2: #ff3060;
+            --accent3: #6a5acd;
+            --accent4: #cc44ff;
+            --text: #c8b8e8;
+            --text-dim: rgba(200,180,240,0.3);
+            --canvas-bg: #020204;
+            --grid-line: rgba(100,40,180,0.07);
+            --snake-body: rgba(155,48,255,0.3);
+            --font: 'Courier New', monospace;
+            --scanline: 1;
+            --btn-bg: #0e0820;
+            --select-bg: #0e0820;
+            --go-bg: rgba(8,4,20,0.97);
+        }
+
+        /* 3. DAYLIGHT 明亮白昼 */
+        [data-theme="daylight"] {
+            --bg: #f0f4f8;
+            --panel-bg: rgba(255,255,255,0.95);
+            --panel-border: #4a9eff;
+            --panel-glow: rgba(74,158,255,0.15);
+            --accent1: #1a73e8;
+            --accent2: #e8340a;
+            --accent3: #00a862;
+            --accent4: #f5a623;
+            --text: #1a2233;
+            --text-dim: rgba(30,50,80,0.45);
+            --canvas-bg: #fff;
+            --grid-line: rgba(74,158,255,0.08);
+            --snake-body: rgba(26,115,232,0.25);
+            --font: 'Arial', sans-serif;
+            --scanline: 0;
+            --btn-bg: #e8f0fe;
+            --select-bg: #e8f0fe;
+            --go-bg: rgba(255,255,255,0.97);
+        }
+
+        /* 4. FOREST 森林 */
+        [data-theme="forest"] {
+            --bg: #0d1f0e;
+            --panel-bg: rgba(10,22,10,0.95);
+            --panel-border: #2d6a2f;
+            --panel-glow: rgba(45,106,47,0.2);
+            --accent1: #4caf50;
+            --accent2: #ffd54f;
+            --accent3: #81c784;
+            --accent4: #a5d6a7;
+            --text: #c8e6c9;
+            --text-dim: rgba(200,230,200,0.35);
+            --canvas-bg: #071008;
+            --grid-line: rgba(76,175,80,0.06);
+            --snake-body: rgba(76,175,80,0.32);
+            --font: 'Georgia', serif;
+            --scanline: 0;
+            --btn-bg: #1b3a1c;
+            --select-bg: #1b3a1c;
+            --go-bg: rgba(10,22,10,0.97);
+        }
+
+        /* 5. RETRO 复古像素 */
+        [data-theme="retro"] {
+            --bg: #1a1a2e;
+            --panel-bg: rgba(20,20,40,0.97);
+            --panel-border: #e94560;
+            --panel-glow: rgba(233,69,96,0.2);
+            --accent1: #e94560;
+            --accent2: #f5a623;
+            --accent3: #0f3460;
+            --accent4: #e94560;
+            --text: #eaeaea;
+            --text-dim: rgba(234,234,234,0.35);
+            --canvas-bg: #0a0a1a;
+            --grid-line: rgba(233,69,96,0.07);
+            --snake-body: rgba(233,69,96,0.35);
+            --font: 'Courier New', monospace;
+            --scanline: 1;
+            --btn-bg: #16213e;
+            --select-bg: #16213e;
+            --go-bg: rgba(20,20,40,0.97);
+        }
+
+        /* 6. SAKURA 樱花和风 */
+        [data-theme="sakura"] {
+            --bg: #fdf0f5;
+            --panel-bg: rgba(255,245,250,0.97);
+            --panel-border: #f48fb1;
+            --panel-glow: rgba(244,143,177,0.18);
+            --accent1: #e91e8c;
+            --accent2: #7b1fa2;
+            --accent3: #d81b60;
+            --accent4: #880e4f;
+            --text: #3d1c2e;
+            --text-dim: rgba(80,30,60,0.4);
+            --canvas-bg: #fff8fb;
+            --grid-line: rgba(233,30,140,0.06);
+            --snake-body: rgba(233,30,140,0.2);
+            --font: 'Georgia', serif;
+            --scanline: 0;
+            --btn-bg: #fce4ec;
+            --select-bg: #fce4ec;
+            --go-bg: rgba(255,245,250,0.97);
+        }
+
+        /* 7. LAVA 熔岩 */
+        [data-theme="lava"] {
+            --bg: #0f0500;
+            --panel-bg: rgba(18,6,0,0.97);
+            --panel-border: #ff4500;
+            --panel-glow: rgba(255,69,0,0.25);
+            --accent1: #ff6f00;
+            --accent2: #ffeb3b;
+            --accent3: #ff1744;
+            --accent4: #ff6d00;
+            --text: #ffe0b2;
+            --text-dim: rgba(255,200,100,0.35);
+            --canvas-bg: #080200;
+            --grid-line: rgba(255,69,0,0.07);
+            --snake-body: rgba(255,111,0,0.35);
+            --font: 'Courier New', monospace;
+            --scanline: 1;
+            --btn-bg: #1a0800;
+            --select-bg: #1a0800;
+            --go-bg: rgba(18,6,0,0.97);
+        }
+
+        /* 8. ICE 极地冰雪 */
+        [data-theme="ice"] {
+            --bg: #e8f4fd;
+            --panel-bg: rgba(235,248,255,0.97);
+            --panel-border: #80deea;
+            --panel-glow: rgba(128,222,234,0.2);
+            --accent1: #006064;
+            --accent2: #0097a7;
+            --accent3: #00838f;
+            --accent4: #26c6da;
+            --text: #002b36;
+            --text-dim: rgba(0,50,70,0.4);
+            --canvas-bg: #f0faff;
+            --grid-line: rgba(0,151,167,0.07);
+            --snake-body: rgba(0,151,167,0.22);
+            --font: 'Arial', sans-serif;
+            --scanline: 0;
+            --btn-bg: #e0f7fa;
+            --select-bg: #e0f7fa;
+            --go-bg: rgba(235,248,255,0.97);
+        }
+
+        /* 9. GOLD 奢华描金（默认） */
+        :root, [data-theme="gold"] {
+            --bg: #0a0800;
+            --panel-bg: rgba(14,11,0,0.97);
+            --panel-border: #b8860b;
+            --panel-glow: rgba(218,165,32,0.22);
+            --accent1: #ffd700;
+            --accent2: #daa520;
+            --accent3: #b8860b;
+            --accent4: #fff8dc;
+            --text: #fff8dc;
+            --text-dim: rgba(255,248,220,0.35);
+            --canvas-bg: #060400;
+            --grid-line: rgba(218,165,32,0.07);
+            --snake-body: rgba(255,215,0,0.28);
+            --font: 'Georgia', serif;
+            --scanline: 0;
+            --btn-bg: #1a1400;
+            --select-bg: #1a1400;
+            --go-bg: rgba(14,11,0,0.97);
+        }
+
+        /* 10. GLITCH 故障艺术 */
+        [data-theme="glitch"] {
+            --bg: #000;
+            --panel-bg: rgba(0,0,0,0.97);
+            --panel-border: #00ff00;
+            --panel-glow: rgba(0,255,0,0.15);
+            --accent1: #00ff00;
+            --accent2: #ff0000;
+            --accent3: #0000ff;
+            --accent4: #ffff00;
+            --text: #00ff00;
+            --text-dim: rgba(0,255,0,0.35);
+            --canvas-bg: #000;
+            --grid-line: rgba(0,255,0,0.06);
+            --snake-body: rgba(0,255,0,0.3);
+            --font: 'Courier New', monospace;
+            --scanline: 1;
+            --btn-bg: #001400;
+            --select-bg: #001400;
+            --go-bg: rgba(0,0,0,0.97);
+        }
+
+        /* ── 全局基础 ── */
+        body {
+            background-color: var(--bg);
+            background-image: var(--bg-image, none);
+            color: var(--text);
+            font-family: var(--font);
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+            gap: 20px;
+            text-transform: uppercase;
+            overflow-x: hidden;
+            transition: background-color 0.4s, color 0.4s;
+        }
+
+        body::after {
+            content: " ";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: repeating-linear-gradient(0deg,rgba(0,0,0,0.08),rgba(0,0,0,0.08) 1px,transparent 1px,transparent 2px);
+            pointer-events: none;
+            z-index: 100;
+            opacity: var(--scanline);
+            transition: opacity 0.4s;
+        }
+
+        #game-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 400px;
+            margin-bottom: 10px;
+            font-size: 0.8rem;
+            color: var(--accent1);
+            transition: color 0.4s;
+        }
+
+        #header-restart-countdown {
+            min-width: 84px;
+            text-align: center;
+            color: var(--accent2);
+            letter-spacing: 0.5px;
+        }
+
+        #ui-wrapper {
+            position: relative;
+            padding: 10px;
+            border: 1px solid var(--panel-border);
+            background: var(--panel-bg);
+            box-shadow: 0 0 20px var(--panel-glow);
+            transition: border-color 0.4s, box-shadow 0.4s, background 0.4s;
+        }
+
+        canvas {
+            display: block;
+            background-color: var(--canvas-bg);
+            border: 1px solid var(--accent2);
+            box-shadow: inset 0 0 10px color-mix(in srgb, var(--accent2) 20%, transparent);
+            transition: border-color 0.4s, background-color 0.4s;
+        }
+
+        .controls-panel {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 400px;
+        }
+
+        .selects-row {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+            align-items: flex-end;
+        }
+
+        .selects-row .setting-group {
+            flex: 0 0 auto;
+        }
+
+        .selects-row select {
+            width: auto;
+        }
+
+        .btns-row {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+        }
+
+        .btns-row #btn-auto,
+        .btns-row #btn-wall {
+            flex: 1;
+        }
+
+        .setting-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-size: 0.7rem;
+            color: var(--accent3);
+            transition: color 0.4s;
+        }
+
+        select, button {
+            background: var(--btn-bg);
+            color: var(--accent1);
+            border: 1px solid var(--accent1);
+            padding: 5px;
+            height: 27px;
+            box-sizing: border-box;
+            font-family: var(--font);
+            cursor: pointer;
+            outline: none;
+            font-size: 0.75rem;
+            transition: background 0.3s, color 0.3s, border-color 0.3s;
+        }
+
+        button.active {
+            background: var(--accent2);
+            color: var(--bg);
+            border-color: var(--accent2);
+            box-shadow: 0 0 10px color-mix(in srgb, var(--accent2) 60%, transparent);
+        }
+
+        #game-over {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--go-bg);
+            padding: 20px;
+            border: 2px solid var(--accent2);
+            text-align: center;
+            display: none;
+            z-index: 110;
+        }
+
+        #auto-restart-countdown {
+            margin-top: 10px;
+            font-size: 0.7rem;
+            color: var(--text-dim);
+            min-height: 1.1em;
+        }
+.glitch-text {
+            color: var(--accent2);
+            text-shadow: 2px 2px var(--accent1);
+            animation: shake 0.5s infinite;
+        }
+
+        @keyframes shake {
+            0%   { transform: translate(0,0) }
+            25%  { transform: translate(2px,-1px) }
+            50%  { transform: translate(-1px,2px) }
+            75%  { transform: translate(1px,-2px) }
+            100% { transform: translate(0,0) }
+        }
+
+        /* ── 排行榜 ── */
+        #leaderboard {
+            width: 200px;
+            flex-shrink: 0;
+            border: 1px solid var(--panel-border);
+            background: var(--panel-bg);
+            box-shadow: 0 0 20px var(--panel-glow);
+            padding: 14px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            align-self: center;
+            transition: border-color 0.4s, background 0.4s, box-shadow 0.4s;
+        }
+
+        /* 左侧占位，与排行榜等宽，使蛇盘视觉居中 */
+        #layout-spacer {
+            width: 200px;
+            flex-shrink: 0;
+        }
+
+        .lb-title {
+            font-size: 0.8rem;
+            color: var(--accent4);
+            text-align: center;
+            letter-spacing: 2px;
+            border-bottom: 1px solid color-mix(in srgb, var(--accent4) 30%, transparent);
+            padding-bottom: 8px;
+            text-shadow: 0 0 8px color-mix(in srgb, var(--accent4) 70%, transparent);
+            transition: color 0.4s;
+        }
+
+        .lb-section-title {
+            font-size: 0.62rem;
+            margin-bottom: 6px;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .lb-section-title.bot   { color: var(--accent2); }
+        .lb-section-title.human { color: var(--accent3); }
+
+        .lb-list {
+            list-style: none;
+            margin: 0; padding: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .lb-list li {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.68rem;
+            padding: 4px 5px;
+            border: 1px solid transparent;
+        }
+
+        .lb-list li.rank-1 { border-color: rgba(255,230,0,0.5); background: rgba(255,230,0,0.06); }
+        .lb-list li.rank-2 { border-color: rgba(192,192,192,0.35); background: rgba(192,192,192,0.03); }
+        .lb-list li.rank-3 { border-color: rgba(205,127,50,0.35); background: rgba(205,127,50,0.03); }
+
+        .lb-rank-num { width: 16px; font-size: 0.6rem; opacity: 0.55; flex-shrink: 0; }
+        .lb-list li.rank-1 .lb-rank-num { color: #ffd700; opacity: 1; }
+        .lb-list li.rank-2 .lb-rank-num { color: #c0c0c0; opacity: 1; }
+        .lb-list li.rank-3 .lb-rank-num { color: #cd7f32; opacity: 1; }
+
+        .lb-main { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+
+        .lb-score {
+            color: var(--accent1);
+            font-weight: bold;
+            font-size: 0.75rem;
+            line-height: 1;
+            transition: color 0.4s;
+        }
+        .lb-list li.rank-1 .lb-score { color: #ffd700; text-shadow: 0 0 6px #ffd700; }
+
+        .lb-meta {
+            font-size: 0.52rem;
+            color: var(--text-dim);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            line-height: 1;
+        }
+
+        .lb-empty { font-size: 0.62rem; color: var(--text-dim); text-align: center; padding: 6px 0; }
+
+        #btn-clear-lb {
+            width: 100%;
+            background: rgba(255,0,0,0.08);
+            color: rgba(255,80,80,0.75);
+            border: 1px solid rgba(255,80,80,0.35);
+            padding: 6px;
+            font-size: 0.62rem;
+            letter-spacing: 1px;
+            cursor: pointer;
+            font-family: var(--font);
+        }
+        #btn-clear-lb:hover { background: rgba(255,0,0,0.2); color: #ff5050; border-color: #ff5050; }
+
+        @keyframes newFlash {
+            0%   { background: color-mix(in srgb, var(--accent3) 30%, transparent); }
+            100% { background: transparent; }
+        }
+        .lb-new-flash { animation: newFlash 1s ease-out; }
+
+        /* ── 快捷键提示 Toast ── */
+        #hotkey-toast {
+            position: fixed;
+            top: 18px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-60px);
+            background: var(--panel-bg);
+            border: 1px solid var(--accent1);
+            color: var(--accent1);
+            font-family: var(--font);
+            font-size: 0.78rem;
+            padding: 7px 22px;
+            letter-spacing: 1px;
+            box-shadow: 0 0 16px var(--panel-glow);
+            z-index: 999;
+            pointer-events: none;
+            transition: transform 0.25s ease, opacity 0.25s ease;
+            opacity: 0;
+            white-space: nowrap;
+        }
+        #hotkey-toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        /* ── 快捷键说明弹窗 ── */
+        #hotkey-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 500;
+            align-items: center;
+            justify-content: center;
+        }
+        #hotkey-modal-overlay.open { display: flex; }
+        #hotkey-modal {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 0 30px var(--panel-glow);
+            padding: 24px 28px;
+            min-width: 300px;
+            font-family: var(--font);
+            color: var(--text);
+            position: relative;
+        }
+        #hotkey-modal h3 {
+            color: var(--accent1);
+            font-size: 0.88rem;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+            text-align: center;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 10px;
+        }
+        .hk-table { width: 100%; border-collapse: collapse; }
+        .hk-table tr td {
+            padding: 6px 8px;
+            font-size: 0.72rem;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+        .hk-table tr td:first-child {
+            color: var(--accent2);
+            font-weight: bold;
+            white-space: nowrap;
+            width: 90px;
+            text-align: center;
+        }
+        .hk-table tr td:last-child { color: var(--text-dim); }
+        .hk-section-title {
+            color: var(--accent3);
+            font-size: 0.65rem;
+            letter-spacing: 2px;
+            padding: 10px 8px 4px;
+        }
+        #hotkey-modal .close-btn {
+            position: absolute;
+            top: 10px; right: 12px;
+            background: none;
+            border: none;
+            color: var(--text-dim);
+            font-size: 1rem;
+            cursor: pointer;
+            padding: 2px 6px;
+            line-height: 1;
+        }
+        #hotkey-modal .close-btn:hover { color: var(--accent1); }
+        #btn-hotkey-help {
+            background: var(--btn-bg);
+            color: var(--accent3);
+            border: 1px solid var(--accent3);
+            font-size: 1rem;
+            padding: 0 10px;
+            height: 27px;
+            line-height: 27px;
+            cursor: pointer;
+            font-family: var(--font);
+            transition: background 0.2s, color 0.2s;
+            box-sizing: border-box;
+        }
+        #btn-hotkey-help:hover { background: var(--accent3); color: var(--bg); }
+        /* ── 自绘确认弹窗 ── */
+        #confirm-modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 650;
+            align-items: center;
+            justify-content: center;
+        }
+        #confirm-modal-overlay.open { display: flex; }
+        #confirm-modal {
+            background: var(--panel-bg);
+            border: 1px solid var(--panel-border);
+            box-shadow: 0 0 30px var(--panel-glow);
+            padding: 20px 22px;
+            min-width: 280px;
+            max-width: min(92vw, 380px);
+            font-family: var(--font);
+            color: var(--text);
+        }
+        #confirm-modal h3 {
+            color: var(--accent1);
+            font-size: 0.84rem;
+            letter-spacing: 1px;
+            margin: 0 0 10px 0;
+            border-bottom: 1px solid var(--panel-border);
+            padding-bottom: 8px;
+            text-align: center;
+        }
+        #confirm-modal-message {
+            font-size: 0.72rem;
+            color: var(--text);
+            text-align: center;
+            margin: 2px 0 14px 0;
+        }
+        .confirm-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .confirm-actions button {
+            flex: 1;
+        }
+        #confirm-ok {
+            background: rgba(255,0,0,0.14);
+            color: #ff8080;
+            border-color: rgba(255,80,80,0.35);
+        }
+        #confirm-ok:hover {
+            background: rgba(255,0,0,0.25);
+            color: #ff5050;
+            border-color: #ff5050;
+        }
+        /* ── 自适应模式侧边栏 UI ── */
+        #auto-sidebar-toggle {
+            display: none;
+            position: fixed;
+            right: -4px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 0 2px;
+            border: none;
+            background: transparent;
+            color: var(--accent1);
+            font-size: 1.5rem;
+            line-height: 1;
+            cursor: pointer;
+            z-index: 420;
+            text-shadow: 0 0 10px color-mix(in srgb, var(--accent1) 60%, transparent);
+            user-select: none;
+        }
+
+        #auto-sidebar-hover-zone {
+            display: none;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 22px;
+            height: 100vh;
+            z-index: 405;
+            background: transparent;
+        }
+
+        #auto-sidebar {
+            display: none;
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: min(360px, 92vw);
+            height: 100vh;
+            background: var(--panel-bg);
+            border-left: none;
+            box-shadow: none;
+            transform: translateX(100%);
+            transition: transform 0.25s ease;
+            z-index: 410;
+            padding: 14px;
+            overflow-y: auto;
+        }
+
+        #auto-sidebar-content {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 100%;
+        }
+
+        body.auto-mode {
+            padding: 0;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        body.auto-mode #layout-spacer { display: none; }
+
+        body.auto-mode #game-section {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+        }
+
+        body.auto-mode #ui-wrapper {
+            width: 100vw;
+            height: 100vh;
+            padding: 10px;
+            border: none !important;
+            box-shadow: none !important;
+            background: color-mix(in srgb, var(--panel-bg) 70%, transparent);
+        }
+
+        body.auto-mode canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            border: none !important;
+            box-shadow: none !important;
+            image-rendering: pixelated;
+        }
+
+        body.auto-mode #auto-sidebar,
+        body.auto-mode #auto-sidebar-toggle,
+        body.auto-mode #auto-sidebar-hover-zone {
+            display: block;
+        }
+
+        body.auto-mode #auto-sidebar {
+            display: block;
+        }
+
+        body.auto-mode.auto-sidebar-open #auto-sidebar {
+            transform: translateX(0);
+        }
+
+        body.auto-mode.auto-sidebar-open #auto-sidebar-toggle {
+            right: -4px;
+            display: none;
+        }
+
+        body.auto-mode #auto-sidebar-toggle:hover {
+            color: var(--accent2);
+        }
+
+        #auto-sidebar .header,
+        #auto-sidebar .controls-panel,
+        #auto-sidebar #leaderboard {
+            width: 100%;
+            margin: 0;
+        }
+
+        #auto-sidebar #leaderboard {
+            align-self: stretch;
+            box-shadow: none;
+        }
+
+        #auto-sidebar .selects-row {
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body data-theme="cyberpunk">
+
+<!-- 快捷键操作提示 Toast -->
+<div id="hotkey-toast"></div>
+
+<!-- 快捷键说明弹窗 -->
+<div id="hotkey-modal-overlay" onclick="closeHotkeyModal(event)">
+    <div id="hotkey-modal">
+        <button class="close-btn" onclick="closeHotkeyModal()">✕</button>
+        <h3>⌨ 快捷键说明</h3>
+        <table class="hk-table">
+            <tr><td colspan="2" class="hk-section-title">── 游戏控制 ──</td></tr>
+            <tr><td>↑ ↓ ← →</td><td>控制蛇的移动方向</td></tr>
+            <tr><td>空格 / Enter</td><td>游戏结束后重新开始</td></tr>
+            <tr><td colspan="2" class="hk-section-title">── 功能开关 ──</td></tr>
+            <tr><td>Z</td><td>开关自动驾驶模式</td></tr>
+            <tr><td>X</td><td>开关穿墙模式</td></tr>
+            <tr><td>C</td><td>循环切换游戏速度</td></tr>
+            <tr><td>V</td><td>循环切换主题</td></tr>
+            <tr><td>B</td><td>呼出/隐藏侧边栏（仅自适应）</td></tr>
+        </table>
+    </div>
+</div>
+
+<div id="confirm-modal-overlay" onclick="closeConfirmModal(event)">
+    <div id="confirm-modal">
+        <h3 data-i18n="confirm_title">确认操作</h3>
+        <div id="confirm-modal-message"></div>
+        <div class="confirm-actions">
+            <button id="confirm-cancel" onclick="closeConfirmModal()" data-i18n="confirm_no">取消</button>
+            <button id="confirm-ok" onclick="confirmModalOk()" data-i18n="confirm_yes">确认</button>
+        </div>
+    </div>
+</div>
+<div id="auto-sidebar-hover-zone"></div>
+<div id="auto-sidebar-toggle" onclick="toggleAutoSidebar()">❮</div>
+<aside id="auto-sidebar">
+    <div id="auto-sidebar-content"></div>
+</aside>
+
+<div id="layout-spacer"></div>
+<div id="game-section">
+    <div id="main-header" class="header">
+        <div data-i18n-prefix="status_label">系统状态: <span id="status" style="color:var(--accent3)" data-i18n="status_ready">就绪</span></div>
+        <div id="header-restart-countdown"></div>
+        <div data-i18n-prefix="score_label">已收集数据: <span id="score">000</span></div>
+    </div>
+
+    <div id="ui-wrapper">
+        <canvas id="gameCanvas" width="800" height="800"></canvas>
+        <div id="game-over">
+            <h2 class="glitch-text" data-i18n="game_over_title">GAME OVER</h2>
+            <button onclick="resetGame()" style="width:100%" data-i18n="btn_reboot">重新开始</button>
+            <div id="auto-restart-countdown"></div>
+        </div>
+    </div>
+
+    <div id="main-controls" class="controls-panel">
+        <div class="selects-row">
+            <div class="setting-group">
+                <label data-i18n="label_speed">游戏速度</label>
+                <select id="speed-select" onchange="updateSettings()">
+                    <option value="150" data-i18n="speed_slow">慢速</option>
+                    <option value="80" data-i18n="speed_normal">正常</option>
+                    <option value="40" selected data-i18n="speed_fast">快速</option>
+                    <option value="15" data-i18n="speed_turbo">超频</option>
+                    <option value="8" data-i18n="speed_hyper">极限</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label data-i18n="label_grid">蛇盘大小</label>
+                <select id="size-select" onchange="updateSettings()">
+                    <option value="10">10x10</option>
+                    <option value="16">16x16</option>
+                    <option value="20">20x20</option>
+                    <option value="25">25x25</option>
+                    <option value="30">30x30</option>
+                    <option value="35">35x35</option>
+                    <option value="40" selected>40x40</option>
+                    <option value="auto" data-i18n="grid_auto">自适应</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label data-i18n="label_theme">🎨 主题</label>
+                <select id="theme-select" onchange="applyTheme(this.value)">
+                    <option value="cyberpunk" data-i18n="theme_cyberpunk">① 赛博朋克</option>
+                    <option value="abyss" data-i18n="theme_abyss">② 深渊暗黑</option>
+                    <option value="daylight" data-i18n="theme_daylight">③ 明亮白昼</option>
+                    <option value="forest" data-i18n="theme_forest">④ 幽暗森林</option>
+                    <option value="retro" data-i18n="theme_retro">⑤ 复古像素</option>
+                    <option value="sakura" data-i18n="theme_sakura">⑥ 樱花和风</option>
+                    <option value="lava" data-i18n="theme_lava">⑦ 熔岩火焰</option>
+                    <option value="ice" data-i18n="theme_ice">⑧ 极地冰雪</option>
+                    <option value="gold" data-i18n="theme_gold">⑨ 奢华描金</option>
+                    <option value="glitch" data-i18n="theme_glitch">⑩ 故障艺术</option>
+                </select>
+            </div>
+            <div class="setting-group">
+                <label data-i18n="label_lang">🌐 语言</label>
+                <select id="lang-select" onchange="applyLang(this.value)">
+                    <option value="zh">中文</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+            <button id="btn-hotkey-help" onclick="openHotkeyModal()" title="快捷键说明" style="align-self:flex-end">⌨</button>
+        </div>
+        <div class="btns-row">
+            <button id="btn-auto" onclick="toggleAuto()" class="active" data-i18n="btn_auto_on">🤖 自动驾驶: 开</button>
+            <button id="btn-wall" onclick="toggleWall()" class="active" data-i18n="btn_wall_on">🌀 穿墙模式: 开</button>
+        </div>
+    </div>
+</div>
+
+<!-- 排行榜 -->
+<div id="leaderboard">
+    <div class="lb-title" data-i18n="lb_title">◈ 排行榜 ◈</div>
+    <div>
+        <div class="lb-section-title bot" data-i18n="lb_bot">🤖 机器人记录</div>
+        <ul class="lb-list" id="lb-bot"></ul>
+    </div>
+    <div>
+        <div class="lb-section-title human" data-i18n="lb_human">👤 人工记录</div>
+        <ul class="lb-list" id="lb-human"></ul>
+    </div>
+    <button id="btn-clear-lb" onclick="clearLeaderboard()" data-i18n="btn_clear">⚠ 清空所有记录</button>
+</div>
+
+<script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+
+    // ── 设置持久化（必须最先初始化）────────────────────
+    const STORAGE_KEY = "cybersnake_v1";
+    const SETTINGS_KEY = "cybersnake_settings";
+    const MAX_ENTRIES = 10;
+
+    const DEFAULT_SETTINGS = {
+        speed: 40, gridCount: 16, isAuto: true, canPassWall: true,
+        lang: 'zh', theme: 'gold'
+    };
+
+    function loadSettings() {
+        try {
+            const s = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+            return s ? Object.assign({}, DEFAULT_SETTINGS, s) : { ...DEFAULT_SETTINGS };
+        } catch { return { ...DEFAULT_SETTINGS }; }
+    }
+
+    function saveSettings() {
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+            speed: gameSpeed, gridCount: gridSetting, isAuto, canPassWall,
+            lang: currentLang, theme: currentTheme
+        }));
+    }
+
+    const cfg = loadSettings();
+    let box = 20;
+    let gridSetting = (cfg.gridCount === 'auto') ? 'auto' : (parseInt(cfg.gridCount, 10) || 16);
+    let gridCols = 16, gridRows = 16;
+    let snake, food, score, direction, gameLoop;
+    let lastFoodEatenAt = 0;
+    let autoRestartTimer = null;
+    let autoRestartCountdownTimer = null;
+    const AUTO_RESTART_SECONDS = 5;
+    let isAuto = cfg.isAuto, canPassWall = cfg.canPassWall, gameSpeed = cfg.speed;
+    let gameStartTime = Date.now();
+    let stepCount = 0;
+
+    // AI 运行态：路径计划 + 循环检测
+    let aiPlannedPath = null;
+    let aiPlanFoodKey = "";
+    let aiHeadHistory = [];
+
+    // 自适应模式 UI 运行态
+    let isAdaptiveUILayout = false;
+    let isSidebarOpen = false;
+    const layoutHomes = new Map();
+
+    function getAdaptiveGridSize() {
+        const minCells = 12;
+        const targetCell = 20;
+        const gutter = 20; // 为边缘背景留出极窄缓冲
+        const availW = Math.max(240, window.innerWidth - gutter);
+        const availH = Math.max(240, window.innerHeight - gutter);
+        const cols = Math.max(minCells, Math.floor(availW / targetCell));
+        const rows = Math.max(minCells, Math.floor(availH / targetCell));
+        const cellX = Math.floor(availW / cols);
+        const cellY = Math.floor(availH / rows);
+        const cell = Math.max(8, Math.min(cellX, cellY));
+        return { cols, rows, cell };
+    }
+
+    function resolveGridSize() {
+        if (gridSetting === 'auto') return getAdaptiveGridSize();
+        const n = parseInt(gridSetting, 10) || 16;
+        return { cols: n, rows: n, cell: 20 };
+    }
+    function resizeAdaptiveWithoutReset() {
+        if (gridSetting !== 'auto') return;
+        if (!snake || !snake.length || !food) return;
+
+        const oldBox = box;
+        const oldSnake = snake.map(p => ({ x: Math.round(p.x / oldBox), y: Math.round(p.y / oldBox) }));
+        const oldFood = { x: Math.round(food.x / oldBox), y: Math.round(food.y / oldBox) };
+
+        const cell = Math.max(8, Math.min(
+            Math.floor(window.innerWidth / gridCols),
+            Math.floor(window.innerHeight / gridRows)
+        ));
+        if (!cell || cell === box) return;
+
+        box = cell;
+        canvas.width = box * gridCols;
+        canvas.height = box * gridRows;
+
+        snake = oldSnake.map(p => ({ x: p.x * box, y: p.y * box }));
+        food = {
+            x: Math.min(gridCols - 1, Math.max(0, oldFood.x)) * box,
+            y: Math.min(gridRows - 1, Math.max(0, oldFood.y)) * box
+        };
+    }
+
+    // ── 国际化 ───────────────────────────────────────
+    const I18N = {
+        zh: {
+            status_label:    '系统状态: ',
+            score_label:     '已收集数据: ',
+            status_ready:    '就绪',
+            status_running:  '运行中',
+            status_halted:   '已停止',
+            game_over_title: 'GAME OVER',
+            btn_reboot:      '重新开始',
+            label_speed:     '游戏速度',
+            label_grid:      '蛇盘大小',
+            grid_auto:       '自适应',
+            label_theme:     '🎨 主题',
+            label_lang:      '🌐 语言',
+            speed_slow:      '慢速',
+            speed_normal:    '正常',
+            speed_fast:      '快速',
+            speed_turbo:     '超频',
+            speed_hyper:     '极限',
+            btn_auto_on:     '🤖 自动驾驶: 开',
+            btn_auto_off:    '🤖 自动驾驶: 关',
+            btn_wall_on:     '🌀 穿墙模式: 开',
+            btn_wall_off:    '🌀 穿墙模式: 关',
+            theme_cyberpunk: '① 赛博朋克',
+            theme_abyss:     '② 深渊暗黑',
+            theme_daylight:  '③ 明亮白昼',
+            theme_forest:    '④ 幽暗森林',
+            theme_retro:     '⑤ 复古像素',
+            theme_sakura:    '⑥ 樱花和风',
+            theme_lava:      '⑦ 熔岩火焰',
+            theme_ice:       '⑧ 极地冰雪',
+            theme_gold:      '⑨ 奢华描金',
+            theme_glitch:    '⑩ 故障艺术',
+            lb_title:        '◈ 排行榜 ◈',
+            lb_bot:          '🤖 机器人记录',
+            lb_human:        '👤 人工记录',
+            lb_empty:        '暂无数据',
+            btn_clear:       '⚠ 清空所有记录',
+            confirm_clear:   '确认清空所有记录？',
+            confirm_title:   '确认操作',
+            confirm_yes:     '确认',
+            confirm_no:      '取消',
+        },
+        en: {
+            status_label:    'SYS_STATUS: ',
+            score_label:     'DATA_COLLECTED: ',
+            status_ready:    'READY',
+            status_running:  'RUNNING',
+            status_halted:   'HALTED',
+            game_over_title: 'GAME OVER',
+            btn_reboot:      'RESTART',
+            label_speed:     'CPU_SPEED',
+            label_grid:      'GRID_SIZE',
+            grid_auto:       'AUTO_FIT',
+            label_theme:     '🎨 THEME',
+            label_lang:      '🌐 LANG',
+            speed_slow:      'SLOW',
+            speed_normal:    'NORMAL',
+            speed_fast:      'FAST',
+            speed_turbo:     'OVERCLOCK',
+            speed_hyper:     'HYPER',
+            btn_auto_on:     'AUTO_PILOT: ON',
+            btn_auto_off:    'AUTO_PILOT: OFF',
+            btn_wall_on:     'PHASE_SHIFT: ON',
+            btn_wall_off:    'PHASE_SHIFT: OFF',
+            theme_cyberpunk: '① CYBERPUNK',
+            theme_abyss:     '② ABYSS',
+            theme_daylight:  '③ DAYLIGHT',
+            theme_forest:    '④ FOREST',
+            theme_retro:     '⑤ RETRO',
+            theme_sakura:    '⑥ SAKURA',
+            theme_lava:      '⑦ LAVA',
+            theme_ice:       '⑧ ICE',
+            theme_gold:      '⑨ GOLD',
+            theme_glitch:    '⑩ GLITCH',
+            lb_title:        '◈ SCORE_BOARD ◈',
+            lb_bot:          '🤖 BOT RECORDS',
+            lb_human:        '👤 HUMAN RECORDS',
+            lb_empty:        'NO DATA YET',
+            btn_clear:       '⚠ PURGE ALL RECORDS',
+            confirm_clear:   'PURGE ALL SCORE RECORDS?',
+            confirm_title:   'CONFIRM',
+            confirm_yes:     'YES',
+            confirm_no:      'CANCEL',
+        }
+    };
+
+    let currentLang = cfg.lang;
+
+    function t(key) { return (I18N[currentLang] || I18N.zh)[key] || key; }
+
+    function applyLang(lang) {
+        currentLang = lang;
+        saveSettings();
+
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+            const key = el.getAttribute('data-i18n');
+            if (el.children.length === 0) el.textContent = t(key);
+        });
+
+        const statusDiv = document.querySelector('[data-i18n-prefix="status_label"]');
+        if (statusDiv) {
+            const span = statusDiv.querySelector('#status');
+            statusDiv.childNodes[0].textContent = t('status_label');
+            if (span) span.textContent = t('status_' + (span.textContent.toLowerCase().replace(' ','_')) ) || span.textContent;
+        }
+        const scoreDiv = document.querySelector('[data-i18n-prefix="score_label"]');
+        if (scoreDiv) scoreDiv.childNodes[0].textContent = t('score_label');
+
+        document.querySelectorAll('option[data-i18n]').forEach(opt => {
+            opt.textContent = t(opt.getAttribute('data-i18n'));
+        });
+
+        const btnAuto = document.getElementById('btn-auto');
+        btnAuto.textContent = isAuto ? t('btn_auto_on') : t('btn_auto_off');
+        const btnWall = document.getElementById('btn-wall');
+        btnWall.textContent = canPassWall ? t('btn_wall_on') : t('btn_wall_off');
+
+        renderLeaderboard();
+    }
+
+    // 读取上次语言设置（已在 cfg 中）
+    document.getElementById('lang-select').value = currentLang;
+
+    // ── 主题系统 ────────────────────────────────────
+    const THEMES = {
+        cyberpunk: { head: '#00f2ff', body: 'rgba(0,242,255,0.38)', food: '#ff00ff', foodGlow: '#ff00ff', grid: 'rgba(0,242,255,0.05)' },
+        abyss:     { head: '#9b30ff', body: 'rgba(155,48,255,0.3)', food: '#ff3060', foodGlow: '#ff3060', grid: 'rgba(100,40,180,0.07)' },
+        daylight:  { head: '#1a73e8', body: 'rgba(26,115,232,0.25)', food: '#e8340a', foodGlow: '#e8340a', grid: 'rgba(74,158,255,0.08)' },
+        forest:    { head: '#4caf50', body: 'rgba(76,175,80,0.32)', food: '#ffd54f', foodGlow: '#ffd54f', grid: 'rgba(76,175,80,0.06)' },
+        retro:     { head: '#e94560', body: 'rgba(233,69,96,0.35)', food: '#f5a623', foodGlow: '#f5a623', grid: 'rgba(233,69,96,0.07)' },
+        sakura:    { head: '#e91e8c', body: 'rgba(233,30,140,0.2)', food: '#7b1fa2', foodGlow: '#7b1fa2', grid: 'rgba(233,30,140,0.06)' },
+        lava:      { head: '#ff6f00', body: 'rgba(255,111,0,0.35)', food: '#ffeb3b', foodGlow: '#ffeb3b', grid: 'rgba(255,69,0,0.07)' },
+        ice:       { head: '#006064', body: 'rgba(0,151,167,0.22)', food: '#0097a7', foodGlow: '#26c6da', grid: 'rgba(0,151,167,0.07)' },
+        gold:      { head: '#ffd700', body: 'rgba(255,215,0,0.28)', food: '#daa520', foodGlow: '#ffd700', grid: 'rgba(218,165,32,0.07)' },
+        glitch:    { head: '#00ff00', body: 'rgba(0,255,0,0.3)',    food: '#ff0000', foodGlow: '#ff0000', grid: 'rgba(0,255,0,0.06)' },
+    };
+
+    let currentTheme = cfg.theme;
+
+    function applyTheme(name) {
+        currentTheme = name;
+        document.body.setAttribute('data-theme', name);
+        saveSettings();
+    }
+
+    // 应用主题到 UI
+    document.getElementById('theme-select').value = currentTheme;
+    document.body.setAttribute('data-theme', currentTheme);
+
+    // ── 排行榜 ──────────────────────────────────────
+    function loadScores() {
+        try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || { bot: [], human: [] }; }
+        catch { return { bot: [], human: [] }; }
+    }
+
+    function saveScore(type, pts) {
+        if (pts <= 0) return;
+        const data = loadScores();
+        const now = new Date();
+        const t = `${now.getMonth()+1}/${now.getDate()} ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+        const elapsed = Date.now() - gameStartTime;
+        const mins = Math.floor(elapsed / 60000);
+        const secs = Math.floor((elapsed % 60000) / 1000);
+        const duration = mins > 0 ? `${mins}m${secs.toString().padStart(2,'0')}s` : `${secs}s`;
+        data[type].push({ score: pts, time: t, grid: `${gridCols}x${gridRows}`, duration, steps: stepCount });
+        data[type].sort((a, b) => b.score - a.score);
+        data[type] = data[type].slice(0, MAX_ENTRIES);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        renderLeaderboard(pts, type);
+    }
+
+    function clearLeaderboard() {
+        openConfirmModal(t('confirm_clear'), () => {
+            localStorage.removeItem(STORAGE_KEY);
+            renderLeaderboard();
+        });
+    }
+
+    function renderLeaderboard(newScore, newType) {
+        const data = loadScores();
+        const medals = ['◆', '◇', '▸'];
+        ['bot', 'human'].forEach(type => {
+            const ul = document.getElementById('lb-' + type);
+            ul.innerHTML = '';
+            if (!data[type].length) {
+                ul.innerHTML = `<div class="lb-empty">${t('lb_empty')}</div>`;
+                return;
+            }
+            let flashIdx = -1;
+            if (newType === type && newScore !== undefined)
+                flashIdx = data[type].findIndex(e => e.score === newScore);
+            data[type].forEach((entry, i) => {
+                const li = document.createElement('li');
+                if (i < 3) li.className = 'rank-' + (i+1);
+                if (i === flashIdx) { li.classList.add('lb-new-flash'); flashIdx = -1; }
+                li.innerHTML =
+                    `<span class="lb-rank-num">${i < 3 ? medals[i] : (i+1)}</span>` +
+                    `<span class="lb-main">` +
+                        `<span class="lb-score">${entry.score.toString().padStart(4,'0')}</span>` +
+                        `<span class="lb-meta">${entry.grid||'?x?'} · ${entry.duration||'--'} · ${(entry.steps ?? '--')}${currentLang === 'en' ? 'st' : '步'} · ${entry.time}</span>` +
+                    `</span>`;
+                ul.appendChild(li);
+            });
+        });
+    }
+
+    // ── 游戏逻辑 ────────────────────────────────────
+    function init() {
+        if (autoRestartTimer) { clearTimeout(autoRestartTimer); autoRestartTimer = null; }
+        if (autoRestartCountdownTimer) { clearInterval(autoRestartCountdownTimer); autoRestartCountdownTimer = null; }
+        applyAdaptiveLayout();
+        const sz = resolveGridSize();
+        gridCols = sz.cols;
+        gridRows = sz.rows;
+        box = sz.cell;
+        canvas.width = box * gridCols;
+        canvas.height = box * gridRows;
+        snake = [{ x: Math.floor(gridCols / 2) * box, y: Math.floor(gridRows / 2) * box }];
+        direction = "RIGHT";
+        score = 0;
+        stepCount = 0;
+        lastFoodEatenAt = Date.now();
+        updateScore();
+        spawnFood();
+        if (gameLoop) clearInterval(gameLoop);
+        gameLoop = setInterval(draw, gameSpeed);
+        document.getElementById("game-over").style.display = "none";
+        document.getElementById("auto-restart-countdown").innerText = "";
+        document.getElementById("header-restart-countdown").innerText = "";
+        document.getElementById("status").innerText = t('status_running');
+        isGameOver = false;
+        gameStartTime = Date.now();
+        aiPlannedPath = null;
+        aiPlanFoodKey = "";
+        aiHeadHistory = [];
+    }
+
+    function updateSettings() {
+        const newSpeed = parseInt(document.getElementById("speed-select").value);
+        const sizeValue = document.getElementById("size-select").value;
+        const newGridSetting = (sizeValue === 'auto') ? 'auto' : (parseInt(sizeValue, 10) || 16);
+
+        if (newSpeed !== gameSpeed) {
+            gameSpeed = newSpeed;
+            if (gameLoop) clearInterval(gameLoop);
+            gameLoop = setInterval(draw, gameSpeed);
+        }
+
+        if (newGridSetting !== gridSetting) {
+            gridSetting = newGridSetting;
+            resetGame();
+        }
+
+        saveSettings();
+    }
+
+    function spawnFood() {
+        food = { x: Math.floor(Math.random()*gridCols)*box, y: Math.floor(Math.random()*gridRows)*box };
+        if (snake.some(p => p.x===food.x && p.y===food.y)) spawnFood();
+    }
+
+    function updateScore() {
+        document.getElementById("score").innerText = score.toString().padStart(3,'0');
+    }
+
+    function toggleAuto() {
+        isAuto = !isAuto;
+        const btn = document.getElementById("btn-auto");
+        btn.textContent = isAuto ? t('btn_auto_on') : t('btn_auto_off');
+        btn.classList.toggle("active", isAuto);
+        saveSettings();
+    }
+
+    function toggleWall() {
+        canPassWall = !canPassWall;
+        const btn = document.getElementById("btn-wall");
+        btn.textContent = canPassWall ? t('btn_wall_on') : t('btn_wall_off');
+        btn.classList.toggle("active", canPassWall);
+        saveSettings();
+    }
+
+    // ── 快捷键 Toast 提示 ────────────────────────────
+    let _toastTimer = null;
+    function showToast(msg) {
+        const el = document.getElementById('hotkey-toast');
+        el.textContent = msg;
+        el.classList.add('show');
+        if (_toastTimer) clearTimeout(_toastTimer);
+        _toastTimer = setTimeout(() => el.classList.remove('show'), 1800);
+    }
+
+    // ── 快捷键说明弹窗 ────────────────────────────────
+    function openHotkeyModal() {
+        document.getElementById('hotkey-modal-overlay').classList.add('open');
+    }
+    function closeHotkeyModal(e) {
+        if (!e || e.target === document.getElementById('hotkey-modal-overlay') || e.currentTarget.classList.contains('close-btn')) {
+            document.getElementById('hotkey-modal-overlay').classList.remove('open');
+        }
+    }
+    let _confirmAction = null;
+    function openConfirmModal(message, onConfirm) {
+        _confirmAction = onConfirm || null;
+        document.getElementById('confirm-modal-message').textContent = message || '';
+        document.getElementById('confirm-modal-overlay').classList.add('open');
+    }
+    function closeConfirmModal(e) {
+        if (e && e.target && e.target.id !== 'confirm-modal-overlay') return;
+        document.getElementById('confirm-modal-overlay').classList.remove('open');
+        _confirmAction = null;
+    }
+    function confirmModalOk() {
+        const action = _confirmAction;
+        document.getElementById('confirm-modal-overlay').classList.remove('open');
+        _confirmAction = null;
+        if (action) action();
+    }
+
+    function _rememberHome(el) {
+        if (!el || !el.id || layoutHomes.has(el.id)) return;
+        layoutHomes.set(el.id, { parent: el.parentNode, next: el.nextSibling });
+    }
+
+    function _restoreHome(el) {
+        const home = el && el.id ? layoutHomes.get(el.id) : null;
+        if (!home || !home.parent) return;
+        if (home.next && home.next.parentNode === home.parent) {
+            home.parent.insertBefore(el, home.next);
+        } else {
+            home.parent.appendChild(el);
+        }
+    }
+
+    function setAutoSidebar(open) {
+        if (gridSetting !== 'auto') open = false;
+        isSidebarOpen = !!open;
+        document.body.classList.toggle('auto-sidebar-open', isSidebarOpen);
+        const t = document.getElementById('auto-sidebar-toggle');
+        if (t) t.textContent = isSidebarOpen ? '❯' : '❮';
+    }
+
+    function toggleAutoSidebar() {
+        if (gridSetting !== 'auto') return;
+        setAutoSidebar(!isSidebarOpen);
+    }
+
+    let _sidebarHideTimer = null;
+    function bindAutoSidebarHover() {
+        const zone = document.getElementById('auto-sidebar-hover-zone');
+        const side = document.getElementById('auto-sidebar');
+        if (!zone || !side) return;
+
+        zone.addEventListener('mouseenter', () => {
+            if (gridSetting !== 'auto') return;
+            if (_sidebarHideTimer) clearTimeout(_sidebarHideTimer);
+            setAutoSidebar(true);
+        });
+
+        side.addEventListener('mouseenter', () => {
+            if (_sidebarHideTimer) clearTimeout(_sidebarHideTimer);
+        });
+
+        side.addEventListener('mouseleave', (e) => {
+            if (gridSetting !== 'auto') return;
+            const rect = side.getBoundingClientRect();
+            const leftExit = e.clientX <= rect.left + 2;
+            if (!leftExit) return;
+            if (_sidebarHideTimer) clearTimeout(_sidebarHideTimer);
+            _sidebarHideTimer = setTimeout(() => setAutoSidebar(false), 80);
+        });
+    }
+
+    function applyAdaptiveLayout() {
+        const adaptive = (gridSetting === 'auto');
+        const header = document.getElementById('main-header');
+        const controls = document.getElementById('main-controls');
+        const board = document.getElementById('leaderboard');
+        const side = document.getElementById('auto-sidebar-content');
+
+        if (!header || !controls || !board || !side) return;
+        _rememberHome(header);
+        _rememberHome(controls);
+        _rememberHome(board);
+
+        if (adaptive) {
+            if (!isAdaptiveUILayout) {
+                side.appendChild(header);
+                side.appendChild(controls);
+                side.appendChild(board);
+                isAdaptiveUILayout = true;
+            }
+            document.body.classList.add('auto-mode');
+            setAutoSidebar(false);
+        } else {
+            if (isAdaptiveUILayout) {
+                _restoreHome(header);
+                _restoreHome(controls);
+                _restoreHome(board);
+                isAdaptiveUILayout = false;
+            }
+            document.body.classList.remove('auto-mode', 'auto-sidebar-open');
+            isSidebarOpen = false;
+        }
+    }
+
+    // ── 速度循环切换（C键）────────────────────────────
+    const SPEED_CYCLE = [150, 80, 40, 15, 8];
+    const SPEED_NAMES = { zh: ['慢速', '正常', '快速', '超频', '极限'], en: ['SLOW', 'NORMAL', 'FAST', 'OVERCLOCK', 'HYPER'] };
+    function cycleSpeed() {
+        const idx = SPEED_CYCLE.indexOf(gameSpeed);
+        const next = SPEED_CYCLE[(idx + 1) % SPEED_CYCLE.length];
+        gameSpeed = next;
+        document.getElementById('speed-select').value = next;
+        if (gameLoop) { clearInterval(gameLoop); gameLoop = setInterval(draw, gameSpeed); }
+        saveSettings();
+        const nameIdx = SPEED_CYCLE.indexOf(next);
+        const nameArr = SPEED_NAMES[currentLang] || SPEED_NAMES.zh;
+        showToast('⚡ ' + (currentLang === 'en' ? 'SPEED: ' : '速度: ') + nameArr[nameIdx]);
+    }
+
+    let isGameOver = false;
+
+    document.addEventListener("keydown", e => {
+        const isArrow = e.keyCode >= 37 && e.keyCode <= 40;
+        if (isArrow) e.preventDefault();
+
+        // Z — 自动驾驶开关
+        if (e.key === 'z' || e.key === 'Z') {
+            toggleAuto();
+            showToast((currentLang === 'en' ? '🤖 AUTO_PILOT: ' : '🤖 自动驾驶: ') + (isAuto ? (currentLang === 'en' ? 'ON' : '开') : (currentLang === 'en' ? 'OFF' : '关')));
+            return;
+        }
+
+        // X — 穿墙模式开关
+        if (e.key === 'x' || e.key === 'X') {
+            toggleWall();
+            showToast((currentLang === 'en' ? '🌀 PHASE_SHIFT: ' : '🌀 穿墙模式: ') + (canPassWall ? (currentLang === 'en' ? 'ON' : '开') : (currentLang === 'en' ? 'OFF' : '关')));
+            return;
+        }
+
+        // B — 自适应模式侧边栏
+        if (e.key === 'b' || e.key === 'B') {
+            if (gridSetting === 'auto') {
+                toggleAutoSidebar();
+                showToast((currentLang === 'en' ? '📑 SIDEBAR: ' : '📑 侧边栏: ') + (isSidebarOpen ? (currentLang === 'en' ? 'OPEN' : '打开') : (currentLang === 'en' ? 'HIDDEN' : '隐藏')));
+            }
+            return;
+        }
+
+        // C — 循环速度
+        if (e.key === 'c' || e.key === 'C') {
+            cycleSpeed();
+            return;
+        }
+
+        // V — 循环切换主题
+        if (e.key === 'v' || e.key === 'V') {
+            const themeList = Object.keys(THEMES);
+            const idx = themeList.indexOf(currentTheme);
+            const next = themeList[(idx + 1) % themeList.length];
+            applyTheme(next);
+            document.getElementById('theme-select').value = next;
+            const nameKey = 'theme_' + next;
+            showToast('🎨 ' + t(nameKey));
+            return;
+        }
+
+        // 游戏结束时，按空格或 Enter 重新开始
+        if (isGameOver && (e.keyCode === 32 || e.keyCode === 13)) {
+            e.preventDefault();
+            resetGame();
+            return;
+        }
+
+        if (isAuto) return;
+        const keys = {37:"LEFT",38:"UP",39:"RIGHT",40:"DOWN"};
+        const nd = keys[e.keyCode];
+        if (!nd) return;
+        const opp = {LEFT:"RIGHT",RIGHT:"LEFT",UP:"DOWN",DOWN:"UP"};
+        if (nd !== opp[direction]) direction = nd;
+    });
+
+    // ── AI：完全照搬贪吃蛇.html 的算法，仅在最外层做坐标转换 ──────
+
+    // 像素坐标转网格坐标（SNAKE.html 用像素，贪吃蛇.html 用网格整数）
+    function _px2g(v) { return Math.round(v / box); }
+
+    // 把 SNAKE.html 的蛇（像素）转成贪吃蛇.html 格式的蛇（{x:列, y:行}）
+    function _snakeToGrid(snakeArr) {
+        return snakeArr.map(p => ({ x: _px2g(p.x), y: _px2g(p.y) }));
+    }
+
+    // ── 以下全部原文复制自贪吃蛇.html，一字不改 ──
+
+    function _key(p) {
+        return `${p.x},${p.y}`;
+    }
+
+    function _eq(a, b) {
+        return a.x === b.x && a.y === b.y;
+    }
+
+    function _cloneSnake(src) {
+        return src.map(s => ({ x: s.x, y: s.y }));
+    }
+
+    function _inBounds(p) {
+        return p.x >= 0 && p.x < gridCols && p.y >= 0 && p.y < gridRows;
+    }
+
+    function _occupiedSet(snakeArr, ignoreTail = false) {
+        const set = new Set();
+        const end = ignoreTail ? snakeArr.length - 1 : snakeArr.length;
+        for (let i = 0; i < end; i++) set.add(_key(snakeArr[i]));
+        return set;
+    }
+
+    function _wrapX(v) {
+        if (v < 0) return gridCols - 1;
+        if (v >= gridCols) return 0;
+        return v;
+    }
+
+    function _wrapY(v) {
+        if (v < 0) return gridRows - 1;
+        if (v >= gridRows) return 0;
+        return v;
+    }
+
+    function _neighbors(p) {
+        const arr = [];
+        const dirs = [{ x: 1, y: 0 }, { x: -1, y: 0 }, { x: 0, y: 1 }, { x: 0, y: -1 }];
+        for (const d of dirs) {
+            let nx = p.x + d.x;
+            let ny = p.y + d.y;
+            if (canPassWall) {
+                nx = _wrapX(nx);
+                ny = _wrapY(ny);
+            }
+            const np = { x: nx, y: ny };
+            if (_inBounds(np)) arr.push(np);
+        }
+        return arr;
+    }
+
+    function _bfsPath(start, target, snakeArr, allowTail = false) {
+        const blocked = _occupiedSet(snakeArr, allowTail);
+        const startKey = _key(start);
+        const targetKey = _key(target);
+        const q = [start];
+        const visited = new Set([startKey]);
+        const prev = new Map();
+
+        while (q.length) {
+            const cur = q.shift();
+            const curKey = _key(cur);
+            if (curKey === targetKey) {
+                const path = [];
+                let k = curKey;
+                while (k !== startKey) {
+                    const [x, y] = k.split(",").map(Number);
+                    path.push({ x, y });
+                    k = prev.get(k);
+                }
+                path.push({ x: start.x, y: start.y });
+                path.reverse();
+                return path;
+            }
+            for (const np of _neighbors(cur)) {
+                const nk = _key(np);
+                if (visited.has(nk)) continue;
+                if (blocked.has(nk) && nk !== targetKey) continue;
+                visited.add(nk);
+                prev.set(nk, curKey);
+                q.push(np);
+            }
+        }
+        return null;
+    }
+
+    function _simulatePath(snakeArr, path, foodPos) {
+        const sim = _cloneSnake(snakeArr);
+        for (let i = 1; i < path.length; i++) {
+            const next = { x: path[i].x, y: path[i].y };
+            sim.unshift(next);
+            if (!_eq(next, foodPos)) sim.pop();
+        }
+        return sim;
+    }
+
+    // even * even 棋盘可构建哈密顿回路：中后期使用可显著降低自陷概率
+    function _buildHamiltonianCycle() {
+        if (gridCols !== gridRows || gridCols < 2 || gridCols % 2 !== 0) return null;
+        const cyc = [];
+
+        for (let y = 0; y < gridRows; y++) cyc.push({ x: 0, y });
+
+        for (let x = 1; x < gridCols; x++) {
+            if (x % 2 === 1) {
+                for (let y = gridRows - 1; y >= 1; y--) cyc.push({ x, y });
+            } else {
+                for (let y = 1; y < gridRows; y++) cyc.push({ x, y });
+            }
+        }
+
+        for (let x = gridCols - 1; x >= 1; x--) cyc.push({ x, y: 0 });
+        return cyc;
+    }
+
+    function _cycleDist(fromIdx, toIdx, n) {
+        return (toIdx - fromIdx + n) % n;
+    }
+
+    function _isLegalMove(gSnake, np, gFood) {
+        if (!_inBounds(np)) return false;
+        const willEat = _eq(np, gFood);
+        const blocked = _occupiedSet(gSnake, !willEat);
+        return !blocked.has(_key(np));
+    }
+
+    function _simulateNextSnake(gSnake, np, gFood) {
+        const sim = _cloneSnake(gSnake);
+        sim.unshift({ x: np.x, y: np.y });
+        if (!_eq(np, gFood)) sim.pop();
+        return sim;
+    }
+
+    function _isSafeNext(gSnake, np, gFood) {
+        if (!_isLegalMove(gSnake, np, gFood)) return false;
+        const sim = _simulateNextSnake(gSnake, np, gFood);
+        const simHead = sim[0];
+        const simTail = sim[sim.length - 1];
+        return !!_bfsPath(simHead, simTail, sim, true);
+    }
+
+    function _chooseByCycle(gSnake, gFood) {
+        const cycle = _buildHamiltonianCycle();
+        if (!cycle) return null;
+
+        const n = cycle.length;
+        const idx = new Map(cycle.map((p, i) => [_key(p), i]));
+        const head = gSnake[0];
+        const tail = gSnake[gSnake.length - 1];
+        const headIdx = idx.get(_key(head));
+        const tailIdx = idx.get(_key(tail));
+        if (headIdx === undefined || tailIdx === undefined) return null;
+
+        // 严格保命：优先按回路前进一步
+        const baseNext = cycle[(headIdx + 1) % n];
+        if (_isLegalMove(gSnake, baseNext, gFood)) return baseNext;
+
+        // 极端情况下回退：允许小幅前跳，但不能越过尾巴区间
+        const dHeadTail = _cycleDist(headIdx, tailIdx, n);
+        let best = null;
+        let bestForward = Infinity;
+        for (const np of _neighbors(head)) {
+            if (!_isSafeNext(gSnake, np, gFood)) continue;
+            const cIdx = idx.get(_key(np));
+            if (cIdx === undefined) continue;
+            const forward = _cycleDist(headIdx, cIdx, n);
+            if (forward === 0) continue;
+            if (forward >= dHeadTail) continue;
+            if (forward < bestForward) {
+                bestForward = forward;
+                best = np;
+            }
+        }
+        return best;
+    }
+
+    function _foodKey(gFood) {
+        return _key(gFood);
+    }
+
+    function _recordHead(head) {
+        aiHeadHistory.push(_key(head));
+        if (aiHeadHistory.length > 24) aiHeadHistory.shift();
+    }
+
+    function _isTailLooping() {
+        if (aiHeadHistory.length < 12) return false;
+        const last = aiHeadHistory.slice(-12);
+        const uniq = new Set(last).size;
+        return uniq <= 4;
+    }
+
+    function _buildSafeFoodPath(gSnake, gFood) {
+        const head = gSnake[0];
+        const pathToFood = _bfsPath(head, gFood, gSnake, true);
+        if (!pathToFood || pathToFood.length <= 1) return null;
+
+        const first = pathToFood[1];
+        if (!_isSafeNext(gSnake, first, gFood)) return null;
+
+        const simulated = _simulatePath(gSnake, pathToFood, gFood);
+        const simHead = simulated[0];
+        const simTail = simulated[simulated.length - 1];
+        if (!_bfsPath(simHead, simTail, simulated, true)) return null;
+
+        return pathToFood;
+    }
+
+    function _tryFollowPlan(gSnake, gFood) {
+        if (!aiPlannedPath || aiPlannedPath.length <= 1) return null;
+        if (aiPlanFoodKey !== _foodKey(gFood)) {
+            aiPlannedPath = null;
+            return null;
+        }
+
+        const head = gSnake[0];
+        if (!_eq(aiPlannedPath[0], head)) {
+            aiPlannedPath = null;
+            return null;
+        }
+
+        const next = aiPlannedPath[1];
+        if (!_isSafeNext(gSnake, next, gFood)) {
+            aiPlannedPath = null;
+            return null;
+        }
+
+        aiPlannedPath.shift();
+        return next;
+    }
+
+    function _chooseNextHead(gSnake, gFood) {
+        const head = gSnake[0];
+        const tail = gSnake[gSnake.length - 1];
+        _recordHead(head);
+
+        // 1) 优先执行已有计划路径，避免每帧重算导致抖动和小圈
+        const planned = _tryFollowPlan(gSnake, gFood);
+        if (planned) return planned;
+
+        // 2) 默认优先安全最短路吃食物
+        const looping = _isTailLooping();
+        const safeFoodPath = _buildSafeFoodPath(gSnake, gFood);
+        if (safeFoodPath) {
+            // 检测到小圈时，只有能明显推进到食物才采用新计划
+            if (!looping || safeFoodPath.length <= 6) {
+                aiPlannedPath = safeFoodPath;
+                aiPlanFoodKey = _foodKey(gFood);
+                aiPlannedPath.shift();
+                return aiPlannedPath[0];
+            }
+        }
+
+        // 3) 保命回路
+        const byCycle = _chooseByCycle(gSnake, gFood);
+        if (byCycle && _isSafeNext(gSnake, byCycle, gFood)) return byCycle;
+
+        // 4) 追尾
+        const tailTarget = gSnake.length > 1 ? gSnake[gSnake.length - 2] : tail;
+        const pathToTail = _bfsPath(head, tailTarget, gSnake, true);
+        if (pathToTail && pathToTail.length > 1 && _isSafeNext(gSnake, pathToTail[1], gFood)) return pathToTail[1];
+
+        // 5) 兜底：避开最近循环点，且尽量靠近食物
+        const recent = new Set(aiHeadHistory.slice(-8));
+        let best = null;
+        let bestScore = -1e9;
+        for (const np of _neighbors(head)) {
+            if (!_isSafeNext(gSnake, np, gFood)) continue;
+            const dist = Math.abs(np.x - gFood.x) + Math.abs(np.y - gFood.y);
+            const penalty = recent.has(_key(np)) ? 4 : 0;
+            const s = -dist - penalty;
+            if (s > bestScore) {
+                bestScore = s;
+                best = np;
+            }
+        }
+        return best;
+    }
+
+    // ── 仅此处做坐标转换，对接 SNAKE.html 的 direction 变量 ──
+    function autoPilot() {
+        const gSnake = _snakeToGrid(snake);
+        const gFood  = { x: _px2g(food.x), y: _px2g(food.y) };
+
+        const next = _chooseNextHead(gSnake, gFood);
+        if (!next) return;
+
+        // 网格下一格 -> 方向字符串（兼容穿墙时的跨边差值）
+        const hx = gSnake[0].x, hy = gSnake[0].y;
+        const dx = next.x - hx, dy = next.y - hy;
+        if      (dx ===  1 || (canPassWall && dx === -(gridCols - 1))) direction = 'RIGHT';
+        else if (dx === -1 || (canPassWall && dx ===  (gridCols - 1))) direction = 'LEFT';
+        else if (dy ===  1 || (canPassWall && dy === -(gridRows - 1))) direction = 'DOWN';
+        else if (dy === -1 || (canPassWall && dy ===  (gridRows - 1))) direction = 'UP';
+    }
+
+    // ── 结束 & 绘制 ──────────────────────────────────
+    function updateAutoRestartCountdown(seconds) {
+        const el = document.getElementById("auto-restart-countdown");
+        if (!el) return;
+        el.innerText = currentLang === 'en'
+            ? `Auto restart in ${seconds}s`
+            : `${seconds} 秒后自动开始`;
+    }
+
+    function updateHeaderStarvationCountdown(msLeft) {
+        const el = document.getElementById("header-restart-countdown");
+        if (!el) return;
+        const seconds = Math.ceil(msLeft / 1000);
+        const showFromSeconds = Math.ceil(gridCols / 2);
+        if (seconds > 0 && seconds <= showFromSeconds) {
+            el.innerText = currentLang === 'en'
+                ? `HUNGER ${seconds}s`
+                : `饥饿 ${seconds}秒`;
+        } else {
+            el.innerText = "";
+        }
+    }
+
+    function startAutoRestartCountdown() {
+        if (autoRestartTimer) { clearTimeout(autoRestartTimer); autoRestartTimer = null; }
+        if (autoRestartCountdownTimer) { clearInterval(autoRestartCountdownTimer); autoRestartCountdownTimer = null; }
+
+        let remain = AUTO_RESTART_SECONDS;
+        updateAutoRestartCountdown(remain);
+        autoRestartCountdownTimer = setInterval(() => {
+            remain -= 1;
+            if (remain <= 0) {
+                clearInterval(autoRestartCountdownTimer);
+                autoRestartCountdownTimer = null;
+                return;
+            }
+            updateAutoRestartCountdown(remain);
+        }, 1000);
+
+        autoRestartTimer = setTimeout(() => {
+            autoRestartTimer = null;
+            resetGame();
+        }, AUTO_RESTART_SECONDS * 1000);
+    }
+    function gameOver() {
+        clearInterval(gameLoop);
+        isGameOver = true;
+        document.getElementById("status").innerText = t('status_halted');
+        document.getElementById("header-restart-countdown").innerText = "";
+        if (isAuto) {
+            saveScore('bot', score);
+            startAutoRestartCountdown();
+        } else {
+            saveScore('human', score);
+            document.getElementById("auto-restart-countdown").innerText = "";
+        }
+        document.getElementById("game-over").style.display = "block";
+    }
+
+    function draw() {
+        if (isAuto) autoPilot();
+        const starvationTimeoutMs = gridCols * 1000;
+        const starvationLeftMs = starvationTimeoutMs - (Date.now() - lastFoodEatenAt);
+        updateHeaderStarvationCountdown(starvationLeftMs);
+        if (starvationLeftMs <= 0) {
+            gameOver();
+            return;
+        }
+        const T = THEMES[currentTheme] || THEMES.cyberpunk;
+
+        // 清空
+        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--canvas-bg').trim() || '#000';
+        ctx.fillRect(0,0,canvas.width,canvas.height);
+
+        // 网格
+        ctx.strokeStyle = T.grid;
+        ctx.lineWidth = 1;
+        for(let i=0;i<canvas.width;i+=box){
+            ctx.beginPath();ctx.moveTo(i,0);ctx.lineTo(i,canvas.height);ctx.stroke();
+            ctx.beginPath();ctx.moveTo(0,i);ctx.lineTo(canvas.width,i);ctx.stroke();
+        }
+
+        // 食物
+        ctx.fillStyle = T.food;
+        ctx.shadowBlur = 10; ctx.shadowColor = T.foodGlow;
+        ctx.fillRect(food.x+2,food.y+2,box-4,box-4);
+
+        // 蛇
+        snake.forEach((p,i) => {
+            ctx.fillStyle = i===0 ? T.head : T.body;
+            const isTail = i === snake.length - 1 && snake.length > 2;
+            ctx.globalAlpha = isTail ? 0.5 : 1;
+            ctx.shadowBlur = i===0 ? 15 : 0;
+            ctx.shadowColor = T.head;
+            ctx.fillRect(p.x,p.y,box-1,box-1);
+            if (isTail) {
+                ctx.strokeStyle = T.head;
+                ctx.lineWidth = 1;
+                ctx.strokeRect(p.x + 0.5, p.y + 0.5, box - 2, box - 2);
+            }
+        });
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+
+        let nX=snake[0].x, nY=snake[0].y;
+        if(direction==="LEFT") nX-=box;
+        else if(direction==="UP") nY-=box;
+        else if(direction==="RIGHT") nX+=box;
+        else if(direction==="DOWN") nY+=box;
+
+        if(canPassWall){
+            if(nX<0)nX=canvas.width-box; else if(nX>=canvas.width)nX=0;
+            if(nY<0)nY=canvas.height-box; else if(nY>=canvas.height)nY=0;
+        }
+
+        const willEatFood = (nX===food.x && nY===food.y);
+        // 不吃食物时尾部下一帧会消失，不算碰撞体（与贪吃蛇.html的 occupiedSet(snake, !willEat) 一致）
+        const bodyCheck = willEatFood ? snake : snake.slice(0, snake.length - 1);
+        if((!canPassWall&&(nX<0||nX>=canvas.width||nY<0||nY>=canvas.height))||bodyCheck.some(p=>p.x===nX&&p.y===nY)){
+            gameOver(); return;
+        }
+
+        if(willEatFood){ score+=10; updateScore(); spawnFood(); lastFoodEatenAt = Date.now(); }
+        else snake.pop();
+        snake.unshift({x:nX,y:nY});
+        stepCount += 1;
+    }
+
+    function resetGame() { init(); }
+
+    let _resizeTimer = null;
+    window.addEventListener('resize', () => {
+        if (gridSetting !== 'auto') return;
+        if (_resizeTimer) clearTimeout(_resizeTimer);
+        _resizeTimer = setTimeout(() => {
+            resizeAdaptiveWithoutReset();
+        }, 120);
+    });
+
+    renderLeaderboard();
+    applyLang(currentLang);
+
+    // 同步 UI 控件到读取的设置
+    document.getElementById('speed-select').value = gameSpeed;
+    document.getElementById('size-select').value = String(gridSetting);
+    document.getElementById('btn-auto').textContent = isAuto ? t('btn_auto_on') : t('btn_auto_off');
+    document.getElementById('btn-auto').classList.toggle('active', isAuto);
+    document.getElementById('btn-wall').textContent = canPassWall ? t('btn_wall_on') : t('btn_wall_off');
+    document.getElementById('btn-wall').classList.toggle('active', canPassWall);
+
+    bindAutoSidebarHover();
+    init();
+</script>
+</body>
+</html>
