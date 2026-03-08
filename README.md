@@ -56,7 +56,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/snake.git
+git clone https://github.com/alex-loding/snake.git
 
 # 直接在浏览器中打开
 open snake.html
